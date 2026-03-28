@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>じぶんの ワークシート</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 画面1：スタート -->
+  <section id="screen-start" class="screen active">
+    <div class="container center">
+      <h1 class="main-title">じぶんの ワークシート</h1>
+      <div class="button-group">
+        <button id="btn-start" class="btn btn-primary">スタート</button>
+        <button id="btn-to-settings" class="btn btn-secondary">せってい</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 画面2：設定 -->
+  <section id="screen-settings" class="screen">
+    <div class="container">
+      <div class="header">
+        <h2>せってい</h2>
+        <button class="btn btn-back btn-small">もどる</button>
+      </div>
+      <div class="settings-content">
+        <div class="card">
+          <h3>ワークシートに だす こうもく</h3>
+          <p>つかう ものに チェックを いれてください。</p>
+          <div id="settings-items-list" class="settings-items-list">
+            <!-- JSで動的に生成 -->
+          </div>
+        </div>
+        <div class="card">
+          <h3>おんせい よみあげ</h3>
+          <p>ボタンを おしたときに こえで よみあげます。</p>
+          <label class="settings-item-checkbox">
+            <input type="checkbox" id="speech-toggle">
+            <span>よみあげを ゆうこうに する</span>
+          </label>
+        </div>
+        <div class="card">
+          <h3>データの かんり</h3>
+          <p>データを ぜんぶ けしますか？</p>
+          <button id="btn-clear-data" class="btn btn-danger">すべて さくじょ</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 画面3：ワーク -->
+  <section id="screen-work" class="screen">
+    <div class="container">
+      <div class="header no-print">
+        <h2>ワークシートを つくる</h2>
+        <div class="header-buttons">
+          <button id="btn-save-pdf" class="btn btn-primary btn-small">PDFとして保存</button>
+          <button id="btn-print" class="btn btn-secondary btn-small">いんさつ</button>
+          <button class="btn btn-back btn-small">もどる</button>
+        </div>
+      </div>
+
+      <div class="worksheet-layout" id="printable-area">
+        <div class="worksheet-header">
+          <div class="profile-section">
+            <div class="profile-text">
+              <div class="profile-row">
+                <div class="input-field-group">
+                  <div class="input-field">
+                    <label for="class-select">くらす</label>
+                    <select id="class-select" class="class-select">
+                      <option value="">えらんでね</option>
+                      <option value="1">1くみ</option>
+                      <option value="2">2くみ</option>
+                      <option value="3">3くみ</option>
+                      <option value="4">4くみ</option>
+                      <option value="5">5くみ</option>
+                      <option value="6">6くみ</option>
+                    </select>
+                  </div>
+                  <div class="input-field">
+                    <label for="number-select">ばんごう</label>
+                    <select id="number-select" class="number-select">
+                      <option value="">えらんでね</option>
+                      <option value="1">1ばん</option>
+                      <option value="2">2ばん</option>
+                      <option value="3">3ばん</option>
+                      <option value="4">4ばん</option>
+                      <option value="5">5ばん</option>
+                      <option value="6">6ばん</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="input-field">
+                <label for="name-input">なまえ</label>
+                <input type="text" id="name-input" placeholder="（ここに にゅうりょく）" class="no-print">
+                <div id="handwriting-area" class="handwriting-area only-print">
+                  <p class="label-small">なまえ</p>
+                  <div class="handwriting-box"></div>
+                </div>
+              </div>
+            </div>
+            <div class="photo-section">
+              <div id="photo-display" class="photo-frame">
+                <p>かおしゃしん</p>
+              </div>
+              <input type="file" id="photo-input" accept="image/*" class="no-print">
+              <label for="photo-input" class="btn btn-secondary btn-small no-print">しゃしんを えらぶ</label>
+            </div>
+          </div>
+        </div>
+
+        <div id="work-items-container" class="work-items-grid">
+          <!-- JSで動的に生成 -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 九九モータル（ペアレンタルゲート） -->
+  <div id="modal-gate" class="modal">
+    <div class="modal-content">
+      <h3>せんせい・おうちのひとへ</h3>
+      <p id="gate-question" class="gate-q"></p>
+      <input type="number" id="gate-answer" class="gate-input" placeholder="こたえ">
+      <div id="gate-status" class="gate-status"></div>
+      <div class="modal-buttons">
+        <button id="btn-gate-submit" class="btn btn-primary">OK</button>
+        <button id="btn-gate-cancel" class="btn btn-secondary">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
