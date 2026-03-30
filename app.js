@@ -100,6 +100,17 @@ document.addEventListener('DOMContentLoaded', () => {
       allowText: true,
       textLabel: "その他",
       textIcon: "blank"
+    },
+    {
+      key: "gekou",
+      label: "げこうほうほう",
+      type: "weekly",
+      days: ["月", "火", "水", "木", "金"],
+      options: [
+        { label: "バス", icon: "icons/school_bus.png" },
+        { label: "デイサービス", icon: "icons/dayservice.png", hasDetail: true },
+        { label: "おむかえ", icon: "icons/omukae.png" }
+      ]
     }
   ];
 
@@ -110,7 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
     name: "",
     values: {},
     enabledKeys: CONFIG.map(c => c.key), // Default all enabled
-    speechEnabled: false
+    speechEnabled: false,
+    nazoriModeEnabled: false
   };
 
   // --- 要素の取得 ---
@@ -133,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const numberSelect = document.getElementById('number-select');
   const nameInput = document.getElementById('name-input');
   const speechToggle = document.getElementById('speech-toggle');
+  const nazoriModeToggle = document.getElementById('nazori-mode-toggle');
 
   // --- 初期化 ---
   loadData();
@@ -140,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderWorkItems();
   updateInputsFromData();
   speechToggle.checked = appData.speechEnabled;
+  nazoriModeToggle.checked = appData.nazoriModeEnabled;
 
   // --- 音声読み上げ ---
   function speak(text) {
@@ -215,6 +229,87 @@ document.addEventListener('DOMContentLoaded', () => {
     modalGate.classList.remove('active');
   });
 
+  // --- 印刷＆PDF保存の前処理・後処理 ---
+  function prepareForPrint() {
+    const printableArea = document.getElementById('printable-area');
+    if (appData.nazoriModeEnabled) {
+      printableArea.classList.add('nazori-mode');
+    }
+
+    // --- 名前の処理 ---
+    const printedNameEl = document.getElementById('printed-name');
+    const handwritingBoxEl = document.querySelector('.handwriting-box');
+    if (appData.name) {
+      printedNameEl.textContent = appData.name;
+      printedNameEl.style.display = 'block';
+      handwritingBoxEl.style.display = 'none';
+    } else {
+      printedNameEl.style.display = 'none';
+      handwritingBoxEl.style.display = 'block';
+    }
+
+    // --- 下校方法の処理 ---
+    const weeklyContainer = document.getElementById('weekly-gekou');
+    if (weeklyContainer) {
+      const weeklyConfig = CONFIG.find(c => c.key === 'gekou');
+      
+      // 週の各曜日についてループ
+      weeklyConfig.days.forEach(day => {
+        const row = weeklyContainer.querySelector(`.weekly-row[data-day="${day}"]`);
+        if (!row) return;
+
+        // 既存の印刷用要素を取得
+        const printEl = row.querySelector('.selected-print');
+        if (!printEl) return;
+
+        // 選択されているボタンを探す
+        const activeButton = row.querySelector('.opt-btn.active');
+        if (!activeButton) {
+          printEl.innerHTML = ''; // 選択肢がない場合は空にする
+          return;
+        }
+        
+        const label = activeButton.dataset.label;
+        const optionConfig = weeklyConfig.options.find(opt => opt.label === label);
+        if (!optionConfig) return;
+
+        let detailText = '';
+        // 詳細入力がある場合は、DOMから直接値を取得する
+        if (optionConfig.hasDetail) {
+          const detailInput = row.querySelector('.weekly-detail-input');
+          if (detailInput && detailInput.value) {
+            detailText = ` (${detailInput.value})`;
+          }
+        }
+
+        // 印刷用要素の中身を更新
+        printEl.innerHTML = `
+          <img src="${optionConfig.icon}" class="icon">
+          <span class="label">${label}${detailText}</span>
+        `;
+      });
+    }
+  }
+
+  function cleanupAfterPrint() {
+    const printableArea = document.getElementById('printable-area');
+    printableArea.classList.remove('nazori-mode');
+
+    // 名前の表示を元に戻す
+    const printedNameEl = document.getElementById('printed-name');
+    const handwritingBoxEl = document.querySelector('.handwriting-box');
+    if(printedNameEl) printedNameEl.style.display = 'none';
+    if(handwritingBoxEl) handwritingBoxEl.style.display = 'block';
+
+    // 下校方法の印刷用表示をクリア
+    const weeklyContainer = document.getElementById('weekly-gekou');
+    if (weeklyContainer) {
+      weeklyContainer.querySelectorAll('.selected-print').forEach(el => {
+        el.innerHTML = ''; // 中身を空にする
+      });
+    }
+  }
+
   // --- イベントリスナー ---
   document.getElementById('btn-start').addEventListener('click', () => showScreen('work'));
   document.getElementById('btn-to-settings').addEventListener('click', () => {
@@ -240,20 +335,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  nazoriModeToggle.addEventListener('change', () => {
+    appData.nazoriModeEnabled = nazoriModeToggle.checked;
+    saveData();
+    if (appData.nazoriModeEnabled) {
+      speak('なぞり もーどを オンにしました');
+    } else {
+      speak('なぞり もーどを オフにしました');
+    }
+  });
+
   document.getElementById('btn-print').addEventListener('click', () => {
+    prepareForPrint();
     window.print();
+    // 印刷ダイアログが閉じた後にクリーンアップ
+    setTimeout(cleanupAfterPrint, 1000);
   });
 
   document.getElementById('btn-save-pdf').addEventListener('click', () => {
     const { jsPDF } = window.jspdf;
     const target = document.getElementById('printable-area');
 
-    // PDF保存用に一時的に影を消す
-    target.style.boxShadow = 'none';
+    prepareForPrint();
+    target.classList.add('force-print-style');
 
     html2canvas(target, {
-      scale: 2, // 解像度を上げる
-      useCORS: true
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff' // 背景を白に固定
     }).then(canvas => {
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -261,34 +370,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const canvasWidth = canvas.width;
-      const canvasHeight = canvas.height;
-      
-      // A4のアスペクト比 (210:297)
-      const pdfAspectRatio = pdfWidth / pdfHeight;
-      // canvasのアスペクト比
-      const canvasAspectRatio = canvasWidth / canvasHeight;
+      const imgWidth = pdfWidth;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
 
-      let imgWidth, imgHeight;
-
-      // canvasのアスペクト比がA4より縦長の場合、幅を基準に合わせる
-      if (canvasAspectRatio > pdfAspectRatio) {
-        imgWidth = pdfWidth;
-        imgHeight = imgWidth / canvasAspectRatio;
-      } else { // A4より横長の場合、高さを基準に合わせる
-        imgHeight = pdfHeight;
-        imgWidth = imgHeight * canvasAspectRatio;
-      }
-      
-      // 中央に配置するための座標計算
-      const x = (pdfWidth - imgWidth) / 2;
-      const y = (pdfHeight - imgHeight) / 2;
-
-      pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
       pdf.save('worksheet.pdf');
 
-      // 元のスタイルに戻す
-      target.style.boxShadow = '';
+    }).finally(() => {
+      // 後処理
+      target.classList.remove('force-print-style');
+      cleanupAfterPrint();
     });
   });
 
@@ -360,85 +451,186 @@ document.addEventListener('DOMContentLoaded', () => {
     const enabledItems = CONFIG.filter(item => appData.enabledKeys.includes(item.key));
     
     enabledItems.forEach(item => {
-      const box = document.createElement('div');
-      box.className = 'work-item-box';
+      let box;
+      if (item.type === 'weekly') {
+        box = renderWeeklyItem(item);
+      } else {
+        box = renderStandardItem(item);
+      }
+      workItemsContainer.appendChild(box);
+    });
+  }
 
-      const h4 = document.createElement('h4');
-      h4.textContent = item.label;
-      box.appendChild(h4);
+  function renderStandardItem(item) {
+    const box = document.createElement('div');
+    box.className = 'work-item-box';
 
-      // 大きな表示エリア
-      const displayContainer = document.createElement('div');
-      displayContainer.className = 'selected-display';
-      displayContainer.id = `display-${item.key}`;
-      displayContainer.innerHTML = '<p class="text">えらんでね</p>';
-      box.appendChild(displayContainer);
+    const h4 = document.createElement('h4');
+    h4.textContent = item.label;
+    box.appendChild(h4);
 
-      // ボタンのグリッド
-      const grid = document.createElement('div');
-      grid.className = 'options-grid';
+    const displayContainer = document.createElement('div');
+    displayContainer.className = 'selected-display';
+    displayContainer.id = `display-${item.key}`;
+    displayContainer.innerHTML = '<p class="text">えらんでね</p>';
+    box.appendChild(displayContainer);
 
+    const grid = document.createElement('div');
+    grid.className = 'options-grid';
+
+    item.options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      
+      let iconEl = '';
+      if (opt.icon === 'blank') {
+        iconEl = '<span class="icon icon-blank"></span>';
+      } else if (opt.icon) {
+        iconEl = `<img src="${opt.icon}" class="icon">`;
+      } else if (opt.emoji) {
+        iconEl = `<span class="emoji">${opt.emoji}</span>`;
+      }
+      btn.innerHTML = `${iconEl}<span class="label">${opt.label}</span>`;
+      
+      btn.addEventListener('click', () => {
+        selectOption(item, opt.label, opt.icon || opt.emoji);
+      });
+      grid.appendChild(btn);
+    });
+
+    if (item.allowText) {
+      const otherBtn = document.createElement('button');
+      otherBtn.className = 'opt-btn';
+      
+      let iconEl = '';
+      if (item.textIcon === 'blank') {
+        iconEl = '<span class="icon icon-blank"></span>';
+      } else if (item.textIcon) {
+        iconEl = `<img src="${item.textIcon}" class="icon">`;
+      } else if (item.textEmoji) {
+        iconEl = `<span class="emoji">${item.textEmoji}</span>`;
+      }
+      otherBtn.innerHTML = `${iconEl}<span class="label">${item.textLabel}</span>`;
+      
+      otherBtn.addEventListener('click', () => {
+        selectOption(item, "__OTHER__", item.textIcon || item.textEmoji);
+      });
+      grid.appendChild(otherBtn);
+
+      const otherInput = document.createElement('input');
+      otherInput.type = 'text';
+      otherInput.id = `text-${item.key}`;
+      otherInput.className = 'other-input';
+      otherInput.placeholder = `${item.textLabel}を にゅうりょく`;
+      otherInput.addEventListener('input', () => {
+         appData.values[item.key] = { type: "other", val: otherInput.value, icon: item.textIcon, emoji: item.textEmoji };
+         updateDisplay(item.key, otherInput.value, item.textIcon || item.textEmoji);
+         saveData();
+      });
+      box.appendChild(otherInput);
+    }
+
+    box.appendChild(grid);
+    return box;
+  }
+
+  function renderWeeklyItem(item) {
+    const box = document.createElement('div');
+    box.className = 'work-item-box weekly-box'; // 下校方法の項目を区別するためのクラスを追加
+
+    const h4 = document.createElement('h4');
+    h4.textContent = item.label;
+    box.appendChild(h4);
+
+    const weeklyContainer = document.createElement('div');
+    weeklyContainer.className = 'weekly-container';
+    weeklyContainer.id = `weekly-${item.key}`;
+
+    item.days.forEach(day => {
+      const row = document.createElement('div');
+      row.className = 'weekly-row';
+      row.dataset.day = day;
+
+      const dayLabel = document.createElement('div');
+      dayLabel.className = 'weekly-day-label';
+      dayLabel.textContent = day;
+      row.appendChild(dayLabel);
+
+      const optionsWrapper = document.createElement('div');
+      optionsWrapper.className = 'weekly-options-wrapper';
+
+      const optionsContainer = document.createElement('div');
+      optionsContainer.className = 'weekly-options-container';
+      
       item.options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'opt-btn';
-        if (appData.values[item.key] && appData.values[item.key].val === opt.label) {
-          btn.classList.add('active');
-        }
-        
-        let iconEl = '';
-        if (opt.icon === 'blank') {
-          iconEl = '<span class="icon icon-blank"></span>';
-        } else if (opt.icon) {
-          iconEl = `<img src="${opt.icon}" class="icon">`;
-        } else if (opt.emoji) {
-          iconEl = `<span class="emoji">${opt.emoji}</span>`;
-        }
-        btn.innerHTML = `${iconEl}<span class="label">${opt.label}</span>`;
-        
-        btn.addEventListener('click', () => {
-          selectOption(item, opt.label, opt.icon || opt.emoji);
-        });
-        grid.appendChild(btn);
+        btn.dataset.label = opt.label;
+        btn.innerHTML = `<img src="${opt.icon}" class="icon"><span class="label">${opt.label}</span>`;
+        btn.addEventListener('click', () => selectWeeklyOption(item, day, opt));
+        optionsContainer.appendChild(btn);
       });
+      
+      optionsWrapper.appendChild(optionsContainer);
 
-      if (item.allowText) {
-        const otherBtn = document.createElement('button');
-        otherBtn.className = 'opt-btn';
-        if (appData.values[item.key] && appData.values[item.key].type === "other") {
-          otherBtn.classList.add('active');
+      const detailInput = document.createElement('input');
+      detailInput.type = 'text';
+      detailInput.className = 'weekly-detail-input';
+      detailInput.placeholder = 'なまえを にゅうりょく';
+      detailInput.addEventListener('input', (e) => {
+        if(appData.values[item.key] && appData.values[item.key][day]) {
+          appData.values[item.key][day].detail = e.target.value;
+          saveData();
         }
-        
-        let iconEl = '';
-        if (item.textIcon === 'blank') {
-          iconEl = '<span class="icon icon-blank"></span>';
-        } else if (item.textIcon) {
-          iconEl = `<img src="${item.textIcon}" class="icon">`;
-        } else if (item.textEmoji) {
-          iconEl = `<span class="emoji">${item.textEmoji}</span>`;
-        }
-        otherBtn.innerHTML = `${iconEl}<span class="label">${item.textLabel}</span>`;
-        
-        otherBtn.addEventListener('click', () => {
-          selectOption(item, "__OTHER__", item.textIcon || item.textEmoji);
-        });
-        grid.appendChild(otherBtn);
+      });
+      optionsWrapper.appendChild(detailInput);
+      
+      row.appendChild(optionsWrapper);
 
-        const otherInput = document.createElement('input');
-        otherInput.type = 'text';
-        otherInput.id = `text-${item.key}`;
-        otherInput.className = 'other-input';
-        otherInput.placeholder = `${item.textLabel}を にゅうりょく`;
-        otherInput.addEventListener('input', () => {
-           appData.values[item.key] = { type: "other", val: otherInput.value, icon: item.textIcon, emoji: item.textEmoji };
-           updateDisplay(item.key, otherInput.value, item.textIcon || item.textEmoji);
-           saveData();
-        });
-        box.appendChild(otherInput);
-      }
+      // Add the print-only element here, as a sibling to the wrapper
+      const selectedPrint = document.createElement('div');
+      selectedPrint.className = 'selected-print';
+      row.appendChild(selectedPrint);
 
-      box.appendChild(grid);
-      workItemsContainer.appendChild(box);
+      weeklyContainer.appendChild(row);
     });
+
+    box.appendChild(weeklyContainer);
+    return box;
+  }
+  
+  function selectWeeklyOption(item, day, opt) {
+    speak(opt.label);
+
+    if (!appData.values[item.key]) {
+      appData.values[item.key] = {};
+    }
+
+    appData.values[item.key][day] = {
+      label: opt.label,
+      detail: appData.values[item.key][day]?.detail || ''
+    };
+    saveData();
+
+    // --- UI Update ---
+    const row = document.querySelector(`.weekly-row[data-day="${day}"]`);
+    if (!row) return;
+
+    // Deactivate all buttons in the row
+    row.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('active'));
+
+    // Activate the clicked button
+    const clickedBtn = row.querySelector(`.opt-btn[data-label="${opt.label}"]`);
+    if (clickedBtn) {
+      clickedBtn.classList.add('active');
+    }
+
+    // Show/hide detail input
+    const detailInput = row.querySelector('.weekly-detail-input');
+    if (detailInput) {
+      detailInput.style.display = opt.hasDetail ? 'block' : 'none';
+      if(opt.hasDetail) detailInput.focus();
+    }
   }
 
   function selectOption(item, label, iconOrEmoji) {
@@ -526,6 +718,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (parsed.speechEnabled === undefined) {
           parsed.speechEnabled = false;
         }
+        if (parsed.nazoriModeEnabled === undefined) {
+          parsed.nazoriModeEnabled = false;
+        }
+        if (!parsed.values.gekou) {
+          parsed.values.gekou = {};
+        }
         appData = parsed;
       }
     } catch (e) {
@@ -540,7 +738,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     CONFIG.forEach(item => {
       const data = appData.values[item.key];
-      if (data) {
+      if (!data) return;
+
+      if (item.type === 'weekly') {
+        const weeklyContainer = document.getElementById(`weekly-${item.key}`);
+        if (!weeklyContainer) return;
+
+        item.days.forEach(day => {
+          const dayData = data[day];
+          if (!dayData) return;
+
+          const row = weeklyContainer.querySelector(`.weekly-row[data-day="${day}"]`);
+          if (!row) return;
+
+          const btn = row.querySelector(`.opt-btn[data-label="${dayData.label}"]`);
+          if (btn) btn.classList.add('active');
+
+          const detailInput = row.querySelector('.weekly-detail-input');
+          const optionConfig = item.options.find(opt => opt.label === dayData.label);
+          if (detailInput && optionConfig?.hasDetail) {
+            detailInput.style.display = 'block';
+            detailInput.value = dayData.detail || '';
+          }
+        });
+      } else {
         updateDisplay(item.key, data.val || (data.type === "other" ? "" : ""), data.icon || data.emoji);
         if (data.type === "other") {
           const text = document.getElementById(`text-${item.key}`);
@@ -548,6 +769,16 @@ document.addEventListener('DOMContentLoaded', () => {
             text.value = data.val;
             text.classList.add('visible');
           }
+        }
+        const box = document.getElementById(`display-${item.key}`)?.closest('.work-item-box');
+        if (box) {
+            const btns = box.querySelectorAll('.opt-btn');
+            btns.forEach(btn => {
+                const btnLabel = btn.querySelector('.label');
+                if (btnLabel && (btnLabel.textContent === data.val || (data.type === "other" && btnLabel.textContent === item.textLabel))) {
+                    btn.classList.add('active');
+                }
+            });
         }
       }
     });

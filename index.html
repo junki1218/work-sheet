@@ -44,6 +44,14 @@
           </label>
         </div>
         <div class="card">
+          <h3>なぞり もーど</h3>
+          <p>おん にすると いんさつした ときに もじが うすくなります。</p>
+          <label class="settings-item-checkbox">
+            <input type="checkbox" id="nazori-mode-toggle">
+            <span>なぞり もーどを ゆうこうに する</span>
+          </label>
+        </div>
+        <div class="card">
           <h3>データの かんり</h3>
           <p>データを ぜんぶ けしますか？</p>
           <button id="btn-clear-data" class="btn btn-danger">すべて さくじょ</button>
@@ -97,10 +105,11 @@
                 </div>
               </div>
               <div class="input-field">
-                <label for="name-input">なまえ</label>
+                <label for="name-input" class="no-print">なまえ</label>
                 <input type="text" id="name-input" placeholder="（ここに にゅうりょく）" class="no-print">
                 <div id="handwriting-area" class="handwriting-area only-print">
                   <p class="label-small">なまえ</p>
+                  <div id="printed-name"></div>
                   <div class="handwriting-box"></div>
                 </div>
               </div>
