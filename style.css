@@ -515,6 +515,8 @@ select {
     box-shadow: none;
     display: flex;
     flex-direction: column;
+    transform: scale(0.95);
+    transform-origin: top left;
   }
 
   .worksheet-header { margin-bottom: 15px; }

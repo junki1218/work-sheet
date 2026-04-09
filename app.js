@@ -248,45 +248,34 @@ document.addEventListener('DOMContentLoaded', () => {
       handwritingBoxEl.style.display = 'block';
     }
 
-    // --- 下校方法の処理 ---
+    // --- 下校方法の詳細入力の値を、印刷用要素に反映 ---
     const weeklyContainer = document.getElementById('weekly-gekou');
     if (weeklyContainer) {
       const weeklyConfig = CONFIG.find(c => c.key === 'gekou');
-      
-      // 週の各曜日についてループ
       weeklyConfig.days.forEach(day => {
         const row = weeklyContainer.querySelector(`.weekly-row[data-day="${day}"]`);
         if (!row) return;
 
-        // 既存の印刷用要素を取得
-        const printEl = row.querySelector('.selected-print');
-        if (!printEl) return;
+        // まず、すべての詳細テキストをクリア
+        row.querySelectorAll('.print-detail-text').forEach(el => el.textContent = '');
 
-        // 選択されているボタンを探す
-        const activeButton = row.querySelector('.opt-btn.active');
-        if (!activeButton) {
-          printEl.innerHTML = ''; // 選択肢がない場合は空にする
-          return;
-        }
+        const dayData = appData.values.gekou ? appData.values.gekou[day] : null;
+        if (!dayData || !dayData.label) return;
+
+        const selectedOptionConfig = weeklyConfig.options.find(opt => opt.label === dayData.label);
+        if (!selectedOptionConfig || !selectedOptionConfig.hasDetail) return;
         
-        const label = activeButton.dataset.label;
-        const optionConfig = weeklyConfig.options.find(opt => opt.label === label);
-        if (!optionConfig) return;
-
-        let detailText = '';
-        // 詳細入力がある場合は、DOMから直接値を取得する
-        if (optionConfig.hasDetail) {
-          const detailInput = row.querySelector('.weekly-detail-input');
-          if (detailInput && detailInput.value) {
-            detailText = ` (${detailInput.value})`;
+        const detailInput = row.querySelector('.weekly-detail-input');
+        if (detailInput && detailInput.value) {
+          // 選択されているオプションの印刷用ビューの中の .print-detail-text を特定
+          const printView = row.querySelector(`.print-for-${dayData.label.replace(/\s/g, '-')}`);
+          if (printView) {
+            const printDetailEl = printView.querySelector('.print-detail-text');
+            if (printDetailEl) {
+              printDetailEl.textContent = ` (${detailInput.value})`;
+            }
           }
         }
-
-        // 印刷用要素の中身を更新
-        printEl.innerHTML = `
-          <img src="${optionConfig.icon}" class="icon">
-          <span class="label">${label}${detailText}</span>
-        `;
       });
     }
   }
@@ -300,14 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const handwritingBoxEl = document.querySelector('.handwriting-box');
     if(printedNameEl) printedNameEl.style.display = 'none';
     if(handwritingBoxEl) handwritingBoxEl.style.display = 'block';
-
-    // 下校方法の印刷用表示をクリア
-    const weeklyContainer = document.getElementById('weekly-gekou');
-    if (weeklyContainer) {
-      weeklyContainer.querySelectorAll('.selected-print').forEach(el => {
-        el.innerHTML = ''; // 中身を空にする
-      });
-    }
   }
 
   // --- イベントリスナー ---
@@ -347,9 +328,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-print').addEventListener('click', () => {
     prepareForPrint();
-    window.print();
-    // 印刷ダイアログが閉じた後にクリーンアップ
-    setTimeout(cleanupAfterPrint, 1000);
+    // 印刷ダイアログが完全に準備ができてから印刷を開始するための短い遅延
+    setTimeout(() => {
+      window.print();
+      cleanupAfterPrint();
+    }, 50);
   });
 
   document.getElementById('btn-save-pdf').addEventListener('click', () => {
@@ -536,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderWeeklyItem(item) {
     const box = document.createElement('div');
-    box.className = 'work-item-box weekly-box'; // 下校方法の項目を区別するためのクラスを追加
+    box.className = 'work-item-box weekly-box';
 
     const h4 = document.createElement('h4');
     h4.textContent = item.label;
@@ -556,12 +539,12 @@ document.addEventListener('DOMContentLoaded', () => {
       dayLabel.textContent = day;
       row.appendChild(dayLabel);
 
+      // --- 操作用UI ---
       const optionsWrapper = document.createElement('div');
       optionsWrapper.className = 'weekly-options-wrapper';
 
       const optionsContainer = document.createElement('div');
       optionsContainer.className = 'weekly-options-container';
-      
       item.options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'opt-btn';
@@ -570,7 +553,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => selectWeeklyOption(item, day, opt));
         optionsContainer.appendChild(btn);
       });
-      
       optionsWrapper.appendChild(optionsContainer);
 
       const detailInput = document.createElement('input');
@@ -584,13 +566,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
       optionsWrapper.appendChild(detailInput);
-      
       row.appendChild(optionsWrapper);
 
-      // Add the print-only element here, as a sibling to the wrapper
-      const selectedPrint = document.createElement('div');
-      selectedPrint.className = 'selected-print';
-      row.appendChild(selectedPrint);
+      // --- 印刷用UI (あらかじめ全パターン生成) ---
+      const printWrapper = document.createElement('div');
+      printWrapper.className = 'weekly-print-wrapper';
+      item.options.forEach(opt => {
+        const printView = document.createElement('div');
+        printView.className = `selected-print-view print-for-${opt.label.replace(/\s/g, '-')}`;
+        
+        let detailSpan = '';
+        if (opt.hasDetail) {
+          detailSpan = `<span class="print-detail-text"></span>`;
+        }
+        
+        printView.innerHTML = `
+          <img src="${opt.icon}" class="icon">
+          <span class="label">${opt.label}</span>${detailSpan}
+        `;
+        printWrapper.appendChild(printView);
+      });
+      row.appendChild(printWrapper);
 
       weeklyContainer.appendChild(row);
     });
@@ -606,9 +602,10 @@ document.addEventListener('DOMContentLoaded', () => {
       appData.values[item.key] = {};
     }
 
+    const currentDetail = appData.values[item.key][day]?.detail || '';
     appData.values[item.key][day] = {
       label: opt.label,
-      detail: appData.values[item.key][day]?.detail || ''
+      detail: opt.hasDetail ? currentDetail : ''
     };
     saveData();
 
@@ -616,16 +613,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = document.querySelector(`.weekly-row[data-day="${day}"]`);
     if (!row) return;
 
-    // Deactivate all buttons in the row
-    row.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('active'));
+    // 選択状態を示すクラスをリセット
+    item.options.forEach(option => {
+      row.classList.remove(`selected-${option.label.replace(/\s/g, '-')}`);
+    });
+    // 新しい選択状態のクラスを追加
+    row.classList.add(`selected-${opt.label.replace(/\s/g, '-')}`);
 
-    // Activate the clicked button
+    // ボタンのactiveクラスを更新
+    row.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('active'));
     const clickedBtn = row.querySelector(`.opt-btn[data-label="${opt.label}"]`);
     if (clickedBtn) {
       clickedBtn.classList.add('active');
     }
 
-    // Show/hide detail input
+    // 詳細入力欄の表示/非表示
     const detailInput = row.querySelector('.weekly-detail-input');
     if (detailInput) {
       detailInput.style.display = opt.hasDetail ? 'block' : 'none';
@@ -750,10 +752,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const row = weeklyContainer.querySelector(`.weekly-row[data-day="${day}"]`);
           if (!row) return;
+          
+          // 選択状態のクラスを付与
+          row.classList.add(`selected-${dayData.label.replace(/\s/g, '-')}`);
 
+          // ボタンをアクティブに
           const btn = row.querySelector(`.opt-btn[data-label="${dayData.label}"]`);
           if (btn) btn.classList.add('active');
 
+          // 詳細入力欄の処理
           const detailInput = row.querySelector('.weekly-detail-input');
           const optionConfig = item.options.find(opt => opt.label === dayData.label);
           if (detailInput && optionConfig?.hasDetail) {
