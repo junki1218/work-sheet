@@ -335,37 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 50);
   });
 
-  document.getElementById('btn-save-pdf').addEventListener('click', () => {
-    const { jsPDF } = window.jspdf;
-    const target = document.getElementById('printable-area');
-
-    prepareForPrint();
-    target.classList.add('force-print-style');
-
-    html2canvas(target, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff' // 背景を白に固定
-    }).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      const imgWidth = pdfWidth;
-      const imgHeight = canvas.height * imgWidth / canvas.width;
-
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      pdf.save('worksheet.pdf');
-
-    }).finally(() => {
-      // 後処理
-      target.classList.remove('force-print-style');
-      cleanupAfterPrint();
-    });
-  });
-
   // フォーム入力の監視
   if (classSelect) {
     classSelect.addEventListener('change', (e) => {
